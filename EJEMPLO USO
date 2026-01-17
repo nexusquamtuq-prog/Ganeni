@@ -1,0 +1,307 @@
+#!/usr/bin/env python3
+"""
+Ejemplo de Uso: Análisis de Colapso Configuracional
+Marco Ganeni - Caso de Estudio Completo
+"""
+
+import numpy as np
+import matplotlib.pyplot as plt
+from ganeni_framework import GaneniField, generate_test_configurations, simulate_collapse_dynamics
+
+# ============================================================================
+# PASO 1: Configuración Inicial del Sistema
+# ============================================================================
+
+print("=" * 70)
+print("MARCO GANENI - EJEMPLO DE USO COMPLETO")
+print("=" * 70)
+
+# Parámetros del sistema
+DIMENSION = 20
+N_CONFIGURATIONS = 100
+RANDOM_SEED = 42
+
+np.random.seed(RANDOM_SEED)
+
+print(f"\n[1] Configuración del Sistema:")
+print(f"    Dimensión: {DIMENSION}")
+print(f"    Número de configuraciones: {N_CONFIGURATIONS}")
+
+# ============================================================================
+# PASO 2: Generación de Configuraciones Iniciales
+# ============================================================================
+
+print(f"\n[2] Generando configuraciones iniciales...")
+
+# Generar tres tipos de distribuciones para comparación
+configs_uniform = generate_test_configurations(
+    N_CONFIGURATIONS, DIMENSION, 'uniform'
+)
+configs_gaussian = generate_test_configurations(
+    N_CONFIGURATIONS, DIMENSION, 'gaussian'
+)
+configs_clustered = generate_test_configurations(
+    N_CONFIGURATIONS, DIMENSION, 'clustered'
+)
+
+print("    ✓ Configuraciones generadas")
+print(f"      - Distribución uniforme: {configs_uniform.shape}")
+print(f"      - Distribución gaussiana: {configs_gaussian.shape}")
+print(f"      - Distribución agrupada: {configs_clustered.shape}")
+
+# ============================================================================
+# PASO 3: Creación y Configuración del Campo Ganeni
+# ============================================================================
+
+print(f"\n[3] Creando campo Ganeni...")
+
+# Crear campo con parámetros estándar
+field = GaneniField(
+    dimension=DIMENSION,
+    metric='euclidean',
+    alpha=1.0,  # Factor de repulsión configuracional
+    beta=0.5    # Factor de amortiguamiento
+)
+
+# Agregar configuraciones gaussianas (caso más realista)
+field.add_configurations(configs_gaussian)
+
+print("    ✓ Campo Ganeni inicializado")
+print(f"      α (repulsión): {field.alpha}")
+print(f"      β (amortiguamiento): {field.beta}")
+
+# ============================================================================
+# PASO 4: Cálculo de Métricas Fundamentales
+# ============================================================================
+
+print(f"\n[4] Calculando métricas del sistema...")
+
+R = field.compute_redundancy_index()
+IRC = field.compute_rigidity_index()
+ICA = field.compute_adjustment_capacity()
+
+print(f"    Índice de Redundancia (R): {R:.4f}")
+print(f"    Índice de Rigidez Configuracional (IRC): {IRC:.4f}")
+print(f"    Índice de Capacidad de Ajuste (ICA): {ICA:.4f}")
+
+# Interpretación automática
+if R > 0.75:
+    print("\n    ⚠ ADVERTENCIA CRÍTICA:")
+    print(f"      Sistema en zona de alto riesgo de colapso (R > 0.75)")
+elif R > 0.5:
+    print("\n    ⚠ Precaución: Sistema presenta redundancia moderada")
+else:
+    print("\n    ✓ Sistema mantiene heterogeneidad saludable")
+
+# ============================================================================
+# PASO 5: Análisis de Trayectoria Configuracional
+# ============================================================================
+
+print(f"\n[5] Integrando trayectoria configuracional...")
+
+# Configuración inicial aleatoria
+x0 = np.random.randn(DIMENSION)
+
+# Normalizar para estar en rango razonable
+x0 = x0 / np.linalg.norm(x0) * 2.0
+
+# Integrar trayectoria
+t_max = 100.0
+n_steps = 500
+
+t, trajectory = field.integrate_trajectory(
+    x0=x0,
+    t_span=(0, t_max),
+    n_points=n_steps
+)
+
+print(f"    ✓ Trayectoria integrada")
+print(f"      Tiempo total: {t_max}")
+print(f"      Pasos temporales: {n_steps}")
+print(f"      Configuración inicial (3 primeras dims): {x0[:3]}")
+print(f"      Configuración final (3 primeras dims): {trajectory[-1, :3]}")
+
+# Calcular distancia total recorrida
+distances = np.linalg.norm(np.diff(trajectory, axis=0), axis=1)
+total_distance = np.sum(distances)
+print(f"      Distancia total recorrida: {total_distance:.2f}")
+
+# ============================================================================
+# PASO 6: Simulación de Dinámica de Colapso
+# ============================================================================
+
+print(f"\n[6] Simulando dinámica de colapso...")
+
+results = simulate_collapse_dynamics(
+    field=field,
+    x0=x0,
+    t_max=t_max,
+    n_steps=n_steps
+)
+
+print(f"    ✓ Simulación completada")
+
+if results['collapse_detected']:
+    collapse_idx = np.argmax(results['redundancy'] > 0.75)
+    collapse_time = results['time'][collapse_idx]
+    print(f"\n    ⚠ COLAPSO CONFIGURACIONAL DETECTADO")
+    print(f"      Tiempo de colapso: t = {collapse_time:.2f}")
+    print(f"      Redundancia máxima: R = {np.max(results['redundancy']):.4f}")
+else:
+    print(f"\n    ✓ Sistema mantiene heterogeneidad")
+    print(f"      Redundancia máxima: R = {np.max(results['redundancy']):.4f}")
+
+# ============================================================================
+# PASO 7: Visualización de Resultados
+# ============================================================================
+
+print(f"\n[7] Generando visualizaciones...")
+
+# Figura 1: Espacio configuracional en 2D
+plt.figure(figsize=(15, 5))
+
+plt.subplot(1, 3, 1)
+field.visualize_configuration_space(
+    method='pca',
+    highlight_points=trajectory[::50]
+)
+plt.title('Espacio Configuracional (PCA)')
+
+# Figura 2: Evolución temporal de redundancia
+plt.subplot(1, 3, 2)
+plt.plot(results['time'], results['redundancy'], 'b-', linewidth=2)
+plt.axhline(y=0.75, color='r', linestyle='--', label='Umbral crítico')
+plt.axhline(y=0.5, color='orange', linestyle='--', label='Precaución')
+plt.xlabel('Tiempo')
+plt.ylabel('Redundancia (R)')
+plt.title('Evolución de Redundancia')
+plt.legend()
+plt.grid(True, alpha=0.3)
+
+# Figura 3: Norma de velocidad configuracional
+plt.subplot(1, 3, 3)
+velocities = np.linalg.norm(np.diff(trajectory, axis=0), axis=1)
+plt.plot(t[1:], velocities, 'g-', linewidth=2)
+plt.xlabel('Tiempo')
+plt.ylabel('||V||')
+plt.title('Velocidad Configuracional')
+plt.grid(True, alpha=0.3)
+
+plt.tight_layout()
+plt.savefig('ganeni_analysis_results.png', dpi=300, bbox_inches='tight')
+print("    ✓ Resultados guardados en 'ganeni_analysis_results.png'")
+
+plt.show()
+
+# ============================================================================
+# PASO 8: Análisis de Estabilidad
+# ============================================================================
+
+print(f"\n[8] Análisis de estabilidad lineal...")
+
+# Evaluar campo en varios puntos de la trayectoria
+n_samples = 10
+sample_indices = np.linspace(0, len(trajectory)-1, n_samples, dtype=int)
+
+print(f"    Analizando {n_samples} puntos de la trayectoria:")
+
+for i, idx in enumerate(sample_indices):
+    x_sample = trajectory[idx]
+    t_sample = t[idx]
+    
+    # Calcular campo vectorial
+    V = field.compute_field(x_sample, t_sample)
+    norm_V = np.linalg.norm(V)
+    
+    # Calcular redundancia local (aproximada)
+    distances_to_configs = np.array([
+        field.metric_func(x_sample, config) 
+        for config in field.configurations
+    ])
+    local_redundancy = 1.0 / (1.0 + np.mean(distances_to_configs))
+    
+    status = "🔴" if local_redundancy > 0.75 else "🟡" if local_redundancy > 0.5 else "🟢"
+    
+    print(f"    {status} t={t_sample:6.2f}: ||V||={norm_V:8.4f}, R_local={local_redundancy:.4f}")
+
+# ============================================================================
+# PASO 9: Recomendaciones Basadas en Análisis
+# ============================================================================
+
+print(f"\n[9] Recomendaciones del sistema:")
+
+if R > 0.75:
+    print("    ⚠ ACCIÓN URGENTE REQUERIDA:")
+    print("      - Introducir nuevas configuraciones para aumentar diversidad")
+    print("      - Considerar perturbaciones externas controladas")
+    print("      - Monitorear indicadores de transición crítica")
+elif R > 0.5:
+    print("    ⚠ Monitoreo recomendado:")
+    print("      - Evaluar periódicamente índice de redundancia")
+    print("      - Preparar estrategias de intervención preventiva")
+else:
+    print("    ✓ Sistema operando en régimen saludable")
+    print("      - Mantener monitoreo periódico")
+    print("      - Documentar trayectorias configuracionales")
+
+if IRC > 0.7:
+    print(f"    ⚠ Alta rigidez configuracional detectada (IRC={IRC:.3f})")
+    print("      - Sistema puede tener dificultad para adaptarse")
+
+if ICA < 0.3:
+    print(f"    ⚠ Baja capacidad de ajuste (ICA={ICA:.3f})")
+    print("      - Rango de respuestas disponibles es limitado")
+
+# ============================================================================
+# PASO 10: Exportación de Datos
+# ============================================================================
+
+print(f"\n[10] Exportando datos de análisis...")
+
+# Crear diccionario con todos los resultados
+export_data = {
+    'parameters': {
+        'dimension': DIMENSION,
+        'n_configurations': N_CONFIGURATIONS,
+        'alpha': field.alpha,
+        'beta': field.beta,
+        'metric': field.metric
+    },
+    'metrics': {
+        'redundancy_index': float(R),
+        'rigidity_index': float(IRC),
+        'adjustment_capacity': float(ICA)
+    },
+    'trajectory': {
+        'time': t.tolist(),
+        'configurations': trajectory.tolist(),
+        'redundancy_history': results['redundancy'].tolist()
+    },
+    'collapse_detected': bool(results['collapse_detected'])
+}
+
+# Guardar en formato JSON
+import json
+with open('ganeni_analysis_export.json', 'w') as f:
+    json.dump(export_data, f, indent=2)
+
+print("    ✓ Datos exportados a 'ganeni_analysis_export.json'")
+
+# ============================================================================
+# RESUMEN FINAL
+# ============================================================================
+
+print("\n" + "=" * 70)
+print("ANÁLISIS COMPLETADO")
+print("=" * 70)
+print(f"\nResumen ejecutivo:")
+print(f"  • Índice de Redundancia: {R:.4f}")
+print(f"  • Rigidez Configuracional: {IRC:.4f}")
+print(f"  • Capacidad de Ajuste: {ICA:.4f}")
+print(f"  • Colapso detectado: {'SÍ' if results['collapse_detected'] else 'NO'}")
+print(f"  • Archivos generados:")
+print(f"    - ganeni_analysis_results.png")
+print(f"    - ganeni_analysis_export.json")
+print("\nPara más información, consulte la documentación completa del Marco Ganeni.")
+print("Repositorio: https://github.com/OLUB/ganeni-framework")
+print("=" * 70)
