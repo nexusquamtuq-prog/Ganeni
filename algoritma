@@ -1,0 +1,100 @@
+import numpy as np
+from scipy.spatial.distance import pdist, squareform
+
+def calcular_campo_ganeni(configuraciones, dt=0.01):
+    """
+    Calcula el campo vectorial Ganeni para un conjunto de configuraciones.
+    
+    Parámetros:
+    -----------
+    configuraciones : array (N, d)
+        Matriz donde cada fila representa una configuración d-dimensional
+    dt : float
+        Paso temporal para integración numérica
+        
+    Retorna:
+    --------
+    campo : array (N, d)
+        Vectores de evolución para cada configuración
+    """
+    N, d = configuraciones.shape
+    
+    # Calcular matriz de distancias
+    distancias = squareform(pdist(configuraciones))
+    
+    # Inicializar campo vectorial
+    campo = np.zeros_like(configuraciones)
+    
+    # Calcular dirección de evolución para cada configuración
+    for i in range(N):
+        # Vector resultante de repulsión con configuraciones cercanas
+        repulsion = np.zeros(d)
+        for j in range(N):
+            if i != j and distancias[i, j] < umbral_interaccion:
+                direccion = configuraciones[i] - configuraciones[j]
+                magnitud = 1.0 / (distancias[i, j]**2 + epsilon)
+                repulsion += direccion * magnitud
+        
+        campo[i] = repulsion
+    
+    # Normalizar campo
+    normas = np.linalg.norm(campo, axis=1, keepdims=True)
+    campo = campo / (normas + epsilon)
+    
+    return campo
+
+def calcular_redundancia(configuraciones):
+    """
+    Calcula el índice de redundancia configuracional R.
+    """
+    distancias = pdist(configuraciones)
+    d_max = np.max(distancias)
+    d_promedio = np.mean(distancias)
+    
+    R = 1.0 - (d_promedio / d_max)
+    return R
+
+def detectar_colapso_inminente(configuraciones_historicas, ventana=10):
+    """
+    Detecta señales tempranas de colapso configuracional mediante
+    análisis de la trayectoria temporal de R.
+    
+    Parámetros:
+    -----------
+    configuraciones_historicas : lista de arrays
+        Secuencia temporal de estados configuracionales
+    ventana : int
+        Tamaño de ventana temporal para análisis de tendencia
+        
+    Retorna:
+    --------
+    alerta : bool
+        True si se detectan señales de colapso inminente
+    tiempo_estimado : float
+        Tiempo estimado hasta colapso (si alerta es True)
+    """
+    # Calcular serie temporal de R
+    R_temporal = [calcular_redundancia(config) for config in configuraciones_historicas]
+    
+    # Analizar tendencia reciente
+    if len(R_temporal) < ventana:
+        return False, None
+    
+    R_reciente = R_temporal[-ventana:]
+    
+    # Ajustar modelo lineal a tendencia
+    t = np.arange(ventana)
+    coef = np.polyfit(t, R_reciente, 1)
+    pendiente = coef[0]
+    
+    # Detectar aceleración hacia R_critico
+    R_actual = R_reciente[-1]
+    R_critico = 0.85  # Umbral crítico (ajustable según sistema)
+    
+    if pendiente > 0 and R_actual > 0.7:
+        # Estimar tiempo hasta colapso por extrapolación lineal
+        if pendiente > 0:
+            tiempo_estimado = (R_critico - R_actual) / pendiente
+            return True, tiempo_estimado
+    
+    return False, None
